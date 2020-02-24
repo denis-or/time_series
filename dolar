@@ -7,13 +7,15 @@ library(RCurl)
 library(jsonlite)
 
 #Obtemos um dia anterior da data atual baseada na data do pc
+#também inserimos a data inicial
 #td = temp_date
-td <- as.character(Sys.Date()-1)
-current_date <- paste(str_sub(td,6,7),str_sub(td,9,10),str_sub(td,1,4),sep="-")
+td<-Sys.Date()-1
+initial_date <- '01-02-2002'
+final_date <- format(td, "%m-%d-%Y")
 
-q<-paste0("https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarPeriodo(dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?@dataInicial='01-02-2002'&@dataFinalCotacao='",current_date,"'&$format=json&$select=cotacaoCompra,cotacaoVenda,dataHoraCotacao")
+q <-paste0("https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarPeriodo(dataInicial=@dataInicial,dataFinalCotacao=@dataFinalCotacao)?@dataInicial='",initial_date,"'&@dataFinalCotacao='",final_date,"'&$format=json&$select=cotacaoCompra,cotacaoVenda,dataHoraCotacao")
 
-resp <- fromJSON(q,simplifyDataFrame = TRUE)
+resp <- fromJSON(q, simplifyDataFrame = TRUE)
 
 cot_api <- as.data.frame(resp[[2]])
 
