@@ -20,7 +20,11 @@ cot_api <- as.data.frame(resp[[2]])
 #Optamos por estruturar desta forma, pois não deu certo com o formato importado.
 cot_api <- cot_api %>% mutate(data = ymd(str_sub(dataHoraCotacao,1,10))) %>% select(data, cotacao=cotacaoCompra)
 
-#captamos os valores máximos e mínimos da série histórica conforme o período os governos
+#captamos os valores máximos e mínimos da série histórica e conforme o período os governos, além de criarmos uma classificação 
+max_serie <- round(max(cot_api$cotacao)+0.20,1)
+min_serie <- round(min(cot_api$cotacao)-0.20,1)
+breaks <- seq(min_serie,max_serie,.5)
+
 max_lula <- round(as.numeric(cot_api %>% 
                            filter(data >= date("2003-01-01"), data <= date("2010-12-31")) %>% 
                            top_n(1, cotacao) %>% 
@@ -52,29 +56,29 @@ max_bolsonaro <- round(as.numeric(cot_api %>%
 
 
 ggplot(cot_api, aes(x = data, y = cotacao)) + 
-#Optamos por inserir os retângulos semi-transparentes antes do gráfico
   annotate("rect",
            fill = "#1a9641", alpha = .1, 
            xmin = date("2003-01-01"), xmax = date("2010-12-31"), 
-           ymin = 1, ymax = 4.5) +
+           ymin = min_serie, ymax = max_serie) +
   annotate("rect",
            fill = "#FFEC1A", alpha = .1, 
            xmin = date("2011-01-01"), xmax = date("2016-08-31"), 
-           ymin = 1, ymax = 4.5) +
+           ymin = min_serie, ymax = max_serie) +
   annotate("rect",
            fill = "#fe9929", alpha = .1, 
            xmin = date("2016-08-31"), xmax = date("2018-12-31"), 
-           ymin = 1, ymax = 4.5) +
+           ymin = min_serie, ymax = max_serie) +
   annotate("rect",
            fill = "#AD2414", alpha = .2, 
            xmin = date("2019-01-01"), xmax = date("2020-02-24"), 
-           ymin = 1, ymax = 4.5) +
-  geom_ribbon(aes(ymax = cotacao, ymin = 1), 
+           ymin = min_serie, ymax = max_serie) +
+  geom_ribbon(aes(ymax = cotacao, ymin = min_serie), 
               fill = "#3182bd", alpha = 0.7) +
   geom_line(color = "#08306b") +
-  scale_y_continuous(limits = c(1,4.5), breaks = c(1.00,1.50,2.00,2.50,3.00,3.50,4.00,4.50)) +
+  scale_y_continuous(limits = c(min_serie,max_serie), breaks = breaks) +
   scale_x_date(breaks=seq(from = as.Date("2002-01-01"), to = as.Date("2020-02-24"), by = "year"), date_labels = "%Y", limits = c(min(cot_api$data),as.Date("2020-02-24"))) +
   ggtitle(expression("Cotação diária do dólar (em reais), Brasil 2002 - 2020*")) +
+  # ggtitle("Cotação diária do dólar (em reais), Brasil 2002 - 2020*")+
   labs(
     subtitle = paste0("Série histórica da cotação do dólar ",
                       "de 2002 a 2020*, com destaque para maior e menor cotação em três governos anteriores,\n", 
@@ -84,16 +88,15 @@ ggplot(cot_api, aes(x = data, y = cotacao)) +
     caption = paste0("Fonte: Olinda - Plataforma Ágil de Serviços de Dados (https://www.bcb.gov.br)  \n",
                      "Visualização: Denis de Oliveira Rodrigues   \n",
                      "*Limite de datas: 02/01/2002 e 23/02/2020  ")) +
-#Inserimos as linhas que separam o início e o fim dos governos
   annotate("segment", x=date("2003-01-01"), xend = date("2003-01-01"),
-           y = 1, yend = 4.5,linetype = "dashed", color="#6F213F") +
+           y = min_serie, yend = max_serie,linetype = "dashed", color="#6F213F") +
   annotate("segment", x=date("2011-01-01"), xend = date("2011-01-01"),
-           y = 1, yend = 4.5,linetype = "dashed", color="#6F213F") +
+           y = min_serie, yend = max_serie,linetype = "dashed", color="#6F213F") +
   annotate("segment", x=date("2016-08-31"), xend=date("2016-08-31"),
-           y = 1, yend = 4.5,linetype = "dashed", color="#6F213F") +
+           y = min_serie, yend = max_serie,linetype = "dashed", color="#6F213F") +
   annotate("segment", x=date("2018-12-31"), xend=date("2018-12-31"),
-           y = 1, yend = 4.5,linetype = "dashed", color="#6F213F") +
-#Inserimos os textos referentes aos valores máximos e mínimos
+           y = min_serie, yend = max_serie,linetype = "dashed", color="#6F213F") +
+
   annotate("text", x = date("2003-08-01"), y = 4,
            hjust = 0, color = "#451225",
            size = 3.7,
