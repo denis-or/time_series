@@ -1,0 +1,31 @@
+#Time-series
+#Theme: Births in Brazil
+#Author: Denis de Oliveira Rodrigues
+
+library(tidyverse)
+library(datasus)
+library(gganimate)
+
+per <- seq(2016,1995,-1)
+
+nv_brasil <- sinasc_nv_mun(linha = "Sexo", coluna = "Ano do nascimento", periodo = per)
+
+nv_brasil_long <- nv_brasil %>% 
+  filter(Sexo != c("TOTAL","Ign")) %>% 
+  pivot_longer(cols = -Sexo,
+               names_to = "Ano",
+               values_to = "Nv") %>% 
+  filter(Ano %in% per) %>% 
+  mutate(Ano = as.integer(Ano))
+
+nv_brasil_long %>% 
+ggplot(aes(Ano, Nv, group = Sexo, color = Sexo)) +
+  geom_line(show.legend = FALSE) +
+  geom_segment(aes(xend = 2016, yend = Nv), linetype = 2, colour = "grey", show.legend = FALSE) +
+  geom_point(size = 2, show.legend = FALSE) + 
+  geom_text(aes(x = 2016, label = Sexo), hjust = 0, show.legend = FALSE) + 
+  transition_reveal(Ano) + 
+  coord_cartesian(clip = 'off') + 
+  labs(title = 'Births in Brazil, 1995-2016', y = 'Número total de nascimentos') +
+  scale_x_continuous("Ano de nascimento", labels = nv_brasil_long$Ano, breaks = nv_brasil_long$Ano)+
+  theme(axis.text.x = element_text(face = "plain", size = 8))
