@@ -1,5 +1,6 @@
 #------Time Series
 #------Author: Denis de Oliveira Rodrigues
+#------Original:https://ggplot2tutor.com/global_annual_temperatures/temperatures/
 
 library(tidyverse)
 library(lubridate)
