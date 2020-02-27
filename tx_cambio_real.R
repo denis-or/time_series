@@ -13,7 +13,9 @@ packages <- c(
   "tidyverse",
   "data.table",
   "lubridate",
-  "gridExtra"
+  "gridExtra",
+  "DataCombine",
+  "plotly"
 )
 
 
@@ -22,9 +24,7 @@ packages <- c(
 installed_packages <- packages %in% rownames(installed.packages())
 
 if (any(installed_packages == F)) {
-  
   install.packages(packages[!installed_packages])
-  
 }
 
 # Carregando Pacotes
@@ -34,11 +34,16 @@ invisible(lapply(packages, library, character.only = T))
 
 # Carregando Dados --------------------------------------------------------
 
+# Intervalo do período analisado
+
+inicio <- as.Date("2000-01-01")
+final <- Sys.Date()
+
 # IPCA
 
 ipca <- ipeadata("PRECOS12_IPCA12", "br") %>%
   select(date, value) %>%
-  filter(date %between% c("2000-01-01", "2020-01-01")) %>%
+  filter(date %between% c(inicio, final)) %>%
   rename("IPCA" = "value") %>%
   mutate(
     mes = month(date),
@@ -53,14 +58,14 @@ ipc <- ipeadata("BLS12_IPCEUAS12", "br") %>%
 
 # inserindo dados manualmente do ICP pelo fato do IPEA não ter os dados atualizados
 # para janeiro de 2020
-# valor pelo no https://data.bls.gov/timeseries/CUSR0000SA0?output_view=pct_1mth
+# valor pego no https://data.bls.gov/timeseries/CUSR0000SA0?output_view=pct_1mth
 
 
 ipc[1285, 1:2] <- c("2020-01-01", 257.971)
 ipc$value <- as.numeric(ipc$value)
 
 ipc <- ipc %>%
-  filter(date %between% c("2000-01-01", "2020-01-01")) %>%
+  filter(date %between% c(inicio, final)) %>%
   rename("IPC" = "value") %>%
   mutate(
     mes = month(date),
@@ -85,7 +90,7 @@ deflator <- ipca %>%
 
 cambio <- ipeadata("GM366_ERC366", "br") %>%
   select(date, value) %>%
-  filter(date %between% c("2000-01-01", "2020-01-31")) %>%
+  filter(date %between% c(inicio, final)) %>%
   rename("Cambio" = "value") %>%
   mutate(mes = month(date), ano = year(date))
 
@@ -103,13 +108,11 @@ df <- cambio %>%
 # Gráfico 1 ---------------------------------------------------------------
 
 
-
-
 # captamos os valores máximos e mínimos da série histórica e conforme o período os governos, além de criarmos uma classificação
 
 
-max_serie1 <- round(max(df$cotacao) + 0.20, 1)
-min_serie1 <- round(min(df$cotacao) - 0.20, 1)
+max_serie1 <- round(max(df$cotacao, na.rm = T) + 0.20, 1)
+min_serie1 <- round(min(df$cotacao, na.rm = T) - 0.20, 1)
 breaks1 <- seq(min_serie1, max_serie1, .5)
 
 # Estatística Descritiva - Governo Lula
@@ -206,12 +209,12 @@ cv_temer <- format(as.numeric(cv_temer), decimal.mark = ",", digits = 3)
 
 
 max_bolsonaro <- round(as.numeric(df %>%
-                                    filter(date %between% c("2019-01-01", "2020-01-31")) %>%
+                                    filter(date %between% c(as.Date("2019-01-01"), final)) %>%
                                     top_n(1, cotacao) %>%
                                     select(cotacao)), 3)
 
 min_bolsonaro <- round(as.numeric(df %>%
-                                    filter(date %between% c("2019-01-01", "2020-01-31")) %>%
+                                    filter(date %between% c(as.Date("2019-01-01"), final)) %>%
                                     top_n(-1, cotacao) %>%
                                     select(cotacao)), 3)
 
@@ -251,7 +254,7 @@ g <- ggplot(df, aes(x = date, y = cotacao)) +
   ) +
   annotate("rect",
            fill = "#AD2414", alpha = .2,
-           xmin = date("2019-01-01"), xmax = date("2020-01-31"),
+           xmin = date("2019-01-01"), xmax = final,
            ymin = min_serie1, ymax = max_serie1
   ) +
   geom_ribbon(aes(ymax = cotacao, ymin = min_serie1),
@@ -261,12 +264,19 @@ g <- ggplot(df, aes(x = date, y = cotacao)) +
   scale_y_continuous(limits = c(min_serie1, max_serie1), breaks = breaks1) +
   scale_x_date(
     breaks = seq(
-      from = as.Date("2002-01-01"),
-      to = as.Date("2020-02-24"), by = "year"
+      from = inicio,
+      to = final, by = "year"
     ),
-    date_labels = "%Y", limits = c(min(df$date), as.Date("2020-02-24"))
+    date_labels = "%Y", limits = c(min(df$date), final)
   ) +
-  ggtitle(expression("Cotação diária do dólar (em reais), Brasil 2000 - 2020*")) +
+  ggtitle(
+      paste(
+        "Cotação diária do dólar (em reais), Brasil", 
+        year(inicio), 
+        '-', 
+        paste0(year(final), '*')
+        )
+    ) +
   # ggtitle("Cotação diária do dólar (em reais), Brasil 2002 - 2020*")+
   labs(
     subtitle = paste0(
@@ -276,9 +286,17 @@ g <- ggplot(df, aes(x = date, y = cotacao)) +
     x = " ",
     caption = paste0(
       "Fonte: IPEADATA (https://www.ipeadata.gov.br)  \n",
-      "Visualização: Alysson Oliveira   \n",
-      "*Limite de datas: 03/01/2000 e 31/01/2020 \n",
-      "** Valores atualizados para Janeiro de 2020 com base no IPCA e no IPC americano"
+      "Visualização: Denis Oliveira Rodrigues e Alysson Oliveira   \n",
+      paste(
+        "*Limite de datas:", format(inicio, "%d/%m/%Y"), "e", 
+        format(last(df[!is.na(df$cotacao),]$date), "%d/%m/%Y"), 
+        "\n"
+        ),
+      paste(
+        "** Valores atualizados para", 
+        format(last(deflator$date), '%B de %Y'), 
+        "com base no IPCA e no IPC americano"
+        )
     )
   ) +
   annotate("segment",
@@ -351,18 +369,17 @@ g <- ggplot(df, aes(x = date, y = cotacao)) +
   ) +
   theme(
     plot.title = element_text(size = 14, colour = "black"),
-    title = element_text(face = "italic", colour = "#636363"),
+    title = element_text(colour = "#636363"),
     plot.caption = element_text(hjust = 0, colour = "black")
   )
-
 
 
 # Gráfico 2 ---------------------------------------------------------------
 
 
 
-max_serie <- round(max(df$Cambio) + 0.20, 1)
-min_serie <- round(min(df$Cambio) - 0.20, 1)
+max_serie <- round(max(df$Cambio, na.rm = T) + 0.20, 1)
+min_serie <- round(min(df$Cambio, na.rm = T) - 0.20, 1)
 breaks <- seq(min_serie, max_serie, .5)
 
 # Estatística Descritiva - Governo Lula
@@ -459,12 +476,12 @@ cv_temer <- format(as.numeric(cv_temer), decimal.mark = ",", digits = 3)
 
 
 max_bolsonaro <- round(as.numeric(df %>%
-                                    filter(date %between% c("2019-01-01", "2020-01-31")) %>%
+                                    filter(date %between% c(as.Date("2019-01-01"), final)) %>%
                                     top_n(1, Cambio) %>%
                                     select(Cambio)), 3)
 
 min_bolsonaro <- round(as.numeric(df %>%
-                                    filter(date %between% c("2019-01-01", "2020-01-31")) %>%
+                                    filter(date %between% c(as.Date("2019-01-01"), final)) %>%
                                     top_n(-1, Cambio) %>%
                                     select(Cambio)), 3)
 
@@ -504,7 +521,7 @@ g2 <- ggplot(df, aes(x = date, y = Cambio)) +
   ) +
   annotate("rect",
            fill = "#AD2414", alpha = .2,
-           xmin = date("2019-01-01"), xmax = date("2020-01-31"),
+           xmin = date("2019-01-01"), xmax = final,
            ymin = min_serie, ymax = max_serie
   ) +
   geom_ribbon(aes(ymax = Cambio, ymin = min_serie),
@@ -514,12 +531,19 @@ g2 <- ggplot(df, aes(x = date, y = Cambio)) +
   scale_y_continuous(limits = c(min_serie, max_serie), breaks = breaks) +
   scale_x_date(
     breaks = seq(
-      from = as.Date("2002-01-01"),
-      to = as.Date("2020-02-24"), by = "year"
+      from = inicio,
+      to = final, by = "year"
     ),
-    date_labels = "%Y", limits = c(min(df$date), as.Date("2020-02-24"))
+    date_labels = "%Y", limits = c(min(df$date), final)
   ) +
-  ggtitle(expression("Cotação diária do dólar (em reais), Brasil 2000 - 2020*")) +
+  ggtitle(
+    paste(
+      "Cotação diária do dólar (em reais), Brasil", 
+      year(inicio), 
+      '-', 
+      paste0(year(final), '*')
+    )
+  ) +
   # ggtitle("Cotação diária do dólar (em reais), Brasil 2002 - 2020*")+
   labs(
     subtitle = paste0(
@@ -529,8 +553,12 @@ g2 <- ggplot(df, aes(x = date, y = Cambio)) +
     x = " ",
     caption = paste0(
       "Fonte: IPEADATA (https://www.ipeadata.gov.br)  \n",
-      "Visualização: Alysson Oliveira   \n",
-      "*Limite de datas: 03/01/2000 e 31/01/2020"
+      "Visualização: Denis Oliveira Rodrigues e Alysson Oliveira   \n",
+      paste(
+        "*Limite de datas:", format(inicio, "%d/%m/%Y"), "e", 
+        format(last(df[!is.na(df$Cambio),]$date), "%d/%m/%Y"), 
+        "\n"
+      )
     )
   ) +
   annotate("segment",
@@ -603,11 +631,9 @@ g2 <- ggplot(df, aes(x = date, y = Cambio)) +
   ) +
   theme(
     plot.title = element_text(size = 14, colour = "black"),
-    title = element_text(face = "italic", colour = "#636363"),
+    title = element_text(colour = "#636363"),
     plot.caption = element_text(hjust = 0, colour = "black")
   )
-
-x2 <- grid.arrange(g, g2)
 
 
 # Salvando gráfico --------------------------------------------------------
@@ -615,31 +641,32 @@ x2 <- grid.arrange(g, g2)
 
 
 ggsave(
-  filename = "tx_cambio_real.png", 
+  filename = "tx_cambio_real.png",
   plot = g,
   path = "figs",
   width = 35,
   height = 15,
-  units = 'cm'
+  units = "cm"
 )
 
 ggsave(
-  filename = "tx_cambio_real.png", 
+  filename = "tx_cambio_real.png",
   plot = g2,
   path = "figs",
   width = 35,
   height = 15,
-  units = 'cm'
+  units = "cm"
 )
 
 ggsave(
-  filename = "grafico.png", 
-  plot = x2,
+  filename = "grafico.png",
+  plot = grid.arrange(g, g2),
   path = "figs",
   width = 35,
   height = 30,
-  units = 'cm'
+  units = "cm"
 )
 
-
+grid.arrange(g, g2)
+g2
 g
